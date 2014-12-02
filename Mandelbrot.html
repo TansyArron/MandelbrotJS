@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+	<head>
+	<meta charset="utf-8"/>
+	<script src="http://cdnjs.cloudflare.com/ajax/libs/mathjs/1.1.0/math.js"></script>
+	<title>Mandelbrot</title>
+    <script type="application/javascript">
+
+		var ITERATIONS = 50;
+
+		var WIDTH = 470;
+
+		var HEIGHT = 320;
+
+		var ctx;
+
+		var Data = [{
+			topLeftX: -2,
+			topLeftY: 1,
+			complexWidth: 3,
+			complexHeight: 2,
+			zoom: .9
+		}]
+
+		var cache = {}
+
+		var hits = 0
+
+		function Points(x, y){
+			// creates an object containing x and y coordinates, complex coordinates,
+			// escape value and color.
+			this.x = x;
+			this.y = y;
+			this.C = this.pixelCoordToComplex(x,y);
+			this.escape = this.escapeValue(this.C);
+			this.color = this.getColor(this.escape);  
+
+		}
+		
+		Points.prototype = {
+			pixelCoordToComplex: function(x, y) {
+				// Translates graph coordinates (x,y) in image size 
+				// (width, height) to complex number. Returns complex number.
+				// sets defaults for topLeft, complexWidth and complexHeight
+				topLeftX = Data[0].topLeftX;
+				topLeftY = Data[0].topLeftY;
+				complexWidth = Data[0].complexWidth;
+				complexHeight = Data[0].complexHeight;
+				return math.complex(topLeftX + complexWidth/WIDTH * x, topLeftY - complexHeight/HEIGHT * y);	
+			},	
+
+			getColor: function(numIterations) {
+				//  takes number of iterations before escape and
+				//  returns an rgb color. if number is greater than 
+				//  global variable ITERATIONS, returns black.
+				if (numIterations < ITERATIONS){
+					var hue = numIterations % (360/6);
+					var color = this.HSVtoRGB((hue*6)/360,1,1);
+					var colorString = 'rgb('+ color[0] +',' + color[1]+ ',' + color[2] + ')';
+					return colorString
+				}
+				else {
+					return 'rgb(0,0,0)'
+				}
+			},
+
+			HSVtoRGB: function(h,s,v){
+				var r, g, b, i, f, p, q, t;
+			    i = Math.floor(h * 6);
+			    f = h * 6 - i;
+			    p = v * (1 - s);
+			    q = v * (1 - f * s);
+			    t = v * (1 - (1 - f) * s);
+			    switch (i % 6) {
+			        case 0: r = v, g = t, b = p; break;
+			        case 1: r = q, g = v, b = p; break;
+			        case 2: r = p, g = v, b = t; break;
+			        case 3: r = p, g = q, b = v; break;
+			        case 4: r = t, g = p, b = v; break;
+			        case 5: r = v, g = p, b = q; break;
+		       }
+	        return [ Math.floor(r * 255), Math.floor(g * 255), Math.floor(b * 255) ];
+			},
+
+			escapeValue: function(C) {
+				// Tests whether complex number 'C' is in the set. 
+		    	// Returns grid coordinates and number of iterations 
+		    	// before escape. If C is in set, returns grid 
+		    	// coordinates and global variable ITERATIONS.
+		    	// caches {C : numiterations} for future zooming.
+				if (cache.hasOwnProperty(C.valueOf())){
+					hits++;
+					return cache[C.valueOf()]
+				}
+
+		    	var Z = math.complex(0, 0);
+
+		    	var numIterations = 0;
+
+		    	while (numIterations < ITERATIONS) {
+		    		if (math.abs(Z) > 2){
+		    			break;
+		    		}	
+		    		Z = math.add(math.pow(Z, 2), C);
+		    		numIterations+=1;	
+		    	}
+		    	cache[C.valueOf()] = numIterations;
+		    	return numIterations
+				}
+		}
+		function getPoints(){
+			// iterates through every pixel coordinate, calls points() to create the
+			// relevent object and stores the object in the array Data[].
+			var result = [];
+			for (x = 0; x < WIDTH; x++) {
+				for(y = 0; y< HEIGHT; y++) {
+					point = new Points(x,y);
+					result.push(point);
+				}
+			}
+			return result
+		}
+
+		function on_canvas_click(ev) {
+			// locates mouse click, computes new top left corner complex plane coordinates
+			// and passes to zoom()
+    		var x = ev.clientX - mandelbrot.offsetLeft;
+    		var y = ev.clientY - mandelbrot.offsetTop;
+    		clickCoords = math.complex(topLeftX + complexWidth/WIDTH * x, topLeftY - complexHeight/HEIGHT * y)
+    		zoom(clickCoords);
+    		
+		}
+
+		function zoom(x, y){
+			// Goal:takes location of new top left corner(complex plane coordinates), updates Data[0] and calls draw()
+			// Current: redraw zoomed in at fixed points.
+			Data[0].topLeftX = clickCoords.re - complexWidth*.25;
+			Data[0].topLeftY = clickCoords.im + complexHeight*.25;
+			Data[0].complexWidth = Data[0].complexWidth*Data[0].zoom;
+			Data[0].complexHeight = Data[0].complexHeight*Data[0].zoom;
+			draw();
+			console.log("hits", hits);
+			hits = 0;
+
+		}
+		function draw(){
+			// initiates canvas using global variables WIDTH and HEIGHT.
+			// calls locations() to create point objects and then draws 
+			// the mandelbrot.
+			var start = +new Date()
+			var points = getPoints();
+			for (i=0;i<points.length;i++){
+				ctx.fillStyle = points[i].color;
+				ctx.fillRect(points[i].x,points[i].y,1,1);
+			}
+			var end = +new Date()
+			console.log("time:", end-start)
+		}
+
+		function main(){
+			var canvas = document.getElementById('mandelbrot');
+			ctx = canvas.getContext('2d');
+			ctx.canvas.width = WIDTH;
+			ctx.canvas.height = HEIGHT;
+			canvas.addEventListener('click', on_canvas_click, false);
+			draw()
+		}
+		
+ 	</script>
+	<style type="text/css">
+	canvas {border: 1px solid black;}
+	</style>
+	</head>
+		<body>
+		<canvas id="mandelbrot" width=WIDTH height=HEIGHT></canvas>
+		<script>window.onload= main</script>
+	</body>
+</html>
